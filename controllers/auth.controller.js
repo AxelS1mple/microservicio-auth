@@ -74,3 +74,36 @@ exports.forgotPassword = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+
+exports.deleteAccount = async (req, res) => {
+  const { username, password } = req.body;
+
+  try {
+    const user = await User.findOne({ username });
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ message: "Contraseña incorrecta" });
+
+    await User.deleteOne({ _id: user._id });
+    res.status(200).json({ message: "Cuenta eliminada correctamente" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+
+exports.getSecurityQuestion = async (req, res) => {
+  const { username } = req.params;
+
+  try {
+    const user = await User.findOne({ username });
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+
+    res.status(200).json({ securityQuestion: user.securityQuestion });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
