@@ -8,27 +8,30 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 4000;
 
-// Lista de orígenes permitidos
 const allowedOrigins = [
   'http://localhost:5173',
   'https://microservicio-auth-view.vercel.app'
 ];
 
-// Middleware CORS configurado correctamente
-app.use(cors({
+const corsOptions = {
   origin: function (origin, callback) {
-    // Permitir solicitudes sin origen (como en POSTMAN o curl)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
     } else {
-      return callback(new Error('No permitido por CORS'));
+      callback(new Error("No permitido por CORS"));
     }
   },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+  optionsSuccessStatus: 200, // importante para algunos navegadores
+};
+
+// Usar CORS con opciones
+app.use(cors(corsOptions));
+
+// Habilitar manejo explícito de preflight OPTIONS para todas las rutas
+app.options("*", cors(corsOptions));
 
 // Middleware para analizar JSON y cookies
 app.use(express.json());
@@ -38,7 +41,7 @@ app.use(cookieParser());
 mongoose
   .connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
-    useUnifiedTopology: true
+    useUnifiedTopology: true,
   })
   .then(() => console.log("✅ MongoDB conectado"))
   .catch((err) => console.error("❌ Error de conexión:", err));
@@ -46,12 +49,12 @@ mongoose
 // Rutas de autenticación
 app.use("/api/auth", require("./routes/auth.routes"));
 
-// Ruta por defecto
+// Ruta base para probar que la API está viva
 app.get("/", (req, res) => {
   res.send("✅ API funcionando correctamente");
 });
 
-// Escuchar el servidor
+// Iniciar servidor
 app.listen(port, () => {
   console.log(`🚀 Servidor en http://localhost:${port}`);
 });
