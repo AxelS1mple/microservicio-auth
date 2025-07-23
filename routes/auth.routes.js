@@ -7,6 +7,8 @@ router.post("/login", authController.login);
 router.post("/forgot-password", authController.forgotPassword);
 router.delete("/delete-account", authController.deleteAccount);
 router.get("/security-question/:username", authController.getSecurityQuestion);
+router.post("/refresh-token", authController.refreshToken);
+router.post("/logout", authController.logout);
 
 
 
