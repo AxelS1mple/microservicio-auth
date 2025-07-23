@@ -36,12 +36,20 @@ app.use(cookieParser());
 
 // Conexión a MongoDB
 mongoose
-  .connect(process.env.MONGO_URI)
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+  })
   .then(() => console.log("✅ MongoDB conectado"))
   .catch((err) => console.error("❌ Error de conexión:", err));
 
 // Rutas de autenticación
 app.use("/api/auth", require("./routes/auth.routes"));
+
+// Ruta por defecto
+app.get("/", (req, res) => {
+  res.send("✅ API funcionando correctamente");
+});
 
 // Escuchar el servidor
 app.listen(port, () => {
