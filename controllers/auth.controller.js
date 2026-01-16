@@ -41,14 +41,69 @@ exports.login = async (req, res) => {
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(401).json({ message: "Contraseña incorrecta" });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
+    // Crear tokens
+    const accessToken = jwt.sign(
+      { id: user._id, tokenVersion: user.tokenVersion },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "5m",
+        issuer: "LoginAPI",
+        audience: "LoginAPIUsers",
+      }
+    );
+
+    const refreshToken = jwt.sign(
+      { id: user._id, tokenVersion: user.tokenVersion },
+      process.env.REFRESH_SECRET,
+      {
+        expiresIn: "7d",
+        issuer: "LoginAPI",
+        audience: "LoginAPIUsers",
+      }
+    );
+
+    // Enviar refreshToken en cookie httpOnly y accessToken en JSON
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,       // Solo https en producción
+      sameSite: "Strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
     });
 
-    res.status(200).json({ message: "Login exitoso", token });
+    res.status(200).json({ message: "Login exitoso", token: accessToken });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+};
+
+
+exports.refreshToken = (req, res) => {
+  const token = req.cookies.refreshToken;
+  if (!token) return res.status(401).json({ message: "No autenticado" });
+
+  jwt.verify(token, process.env.REFRESH_SECRET, (err, payload) => {
+    if (err) return res.status(403).json({ message: "Token inválido" });
+
+    // Buscar usuario para validar tokenVersion actual
+    User.findById(payload.id).then((user) => {
+      if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+      if (user.tokenVersion !== payload.tokenVersion)
+        return res.status(403).json({ message: "Token revocado" });
+
+      // Crear nuevo accessToken
+      const accessToken = jwt.sign(
+        { id: user._id, tokenVersion: user.tokenVersion },
+        process.env.JWT_SECRET,
+        {
+          expiresIn: "5m",
+          issuer: "LoginAPI",
+          audience: "LoginAPIUsers",
+        }
+      );
+
+      res.json({ token: accessToken });
+    });
+  });
 };
 
 
@@ -106,4 +161,23 @@ exports.getSecurityQuestion = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+};
+
+
+exports.logout = async (req, res) => {
+  const token = req.cookies.refreshToken;
+  if (!token) return res.status(200).json({ message: "Sesión cerrada" });
+
+  jwt.verify(token, process.env.REFRESH_SECRET, async (err, payload) => {
+    if (err) {
+      res.clearCookie("refreshToken");
+      return res.status(200).json({ message: "Sesión cerrada" });
+    }
+
+    // Incrementar tokenVersion para invalidar tokens antiguos
+    await User.findByIdAndUpdate(payload.id, { $inc: { tokenVersion: 1 } });
+
+    res.clearCookie("refreshToken");
+    res.status(200).json({ message: "Sesión cerrada y tokens revocados" });
+  });
 };
